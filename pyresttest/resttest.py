@@ -71,6 +71,7 @@ class TestConfig:
     interactive = False
     verbose = False
     ssl_insecure = False
+    noproxy = False
 
     # Binding and creation of generators
     variable_binds = None
@@ -272,6 +273,8 @@ def run_test(mytest, test_config = TestConfig(), context = None):
     if test_config.ssl_insecure:
         curl.setopt(pycurl.SSL_VERIFYPEER,0)
         curl.setopt(pycurl.SSL_VERIFYHOST,0)
+    if test_config.noproxy:
+        curl.setopt(pycurl.NOPROXY,test_config.noproxy)
 
     result.passed = None
 
@@ -682,6 +685,7 @@ def main(args):
         log           - OPTIONAL - set logging level {debug,info,warning,error,critical} (default=warning)
         interactive   - OPTIONAL - mode that prints info before and after test exectuion and pauses for user input for each test
         absolute_urls - OPTIONAL - mode that treats URLs in tests as absolute/full URLs instead of relative URLs
+        noproxy       - OPTIONAL - mode that behaves like curl --noproxy
     """
 
     if 'log' in args and args['log'] is not None:
@@ -730,6 +734,9 @@ def main(args):
         if 'ssl_insecure' in args and args['ssl_insecure'] is not None:
             t.config.ssl_insecure = safe_to_bool(args['ssl_insecure'])
 
+        if 'noproxy' in args and args['noproxy'] is not None:
+            t.config.noproxy = args['noproxy']
+
     # Execute all testsets
     failures = run_testsets(tests)
 
@@ -749,6 +756,7 @@ def command_line_run(args_in):
     parser.add_option(u'--verbose', help='Put cURL into verbose mode for extra debugging power', action='store_true', default=False, dest="verbose")
     parser.add_option(u'--ssl-insecure', help='Disable cURL host and peer cert verification', action='store_true', default=False, dest="ssl_insecure")
     parser.add_option(u'--absolute-urls', help='Enable absolute URLs in tests instead of relative paths', action="store_true", dest="absolute_urls")
+    parser.add_option(u'--noproxy', help='Comma-separated list of hosts which do not use a proxy', action="store", type="string")
 
     (args, unparsed_args) = parser.parse_args(args_in)
     args = vars(args)
