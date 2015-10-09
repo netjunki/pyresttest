@@ -10,6 +10,7 @@ from multiprocessing import Process
 from django.core.management import call_command
 
 from tests import Test
+from binding import Context
 import resttest
 import validators
 
@@ -46,6 +47,28 @@ class RestTestCase(unittest.TestCase):
         self.assertTrue(test_response.passed)
         self.assertEqual(200, test_response.response_code)
 
+    def test_patch(self):
+        """ Basic local get test """
+        test = Test()
+        test.url = self.prefix + '/api/person/2/'
+        test.method = 'PATCH'
+        test.body = '{"login":"special"}'
+        test.headers = {u'Content-Type':u'application/json',
+            u'X-HTTP-Method-Override':u'PATCH'}
+        test.expected_status = [202, 400] # Django issues give a 400, sigh
+        test_response = resttest.run_test(test)
+        self.assertTrue(test_response.passed)
+        #self.assertEqual(202, test_response.response_code)
+
+    def test_get_redirect(self):
+        """ Basic local get test """
+        test = Test()
+        test.curl_options = {'FOLLOWLOCATION': True}
+        test.url = self.prefix + '/api/person'
+        test_response = resttest.run_test(test)
+        self.assertTrue(test_response.passed)
+        self.assertEqual(200, test_response.response_code)
+
     def test_get_validators(self):
         """ Test that validators work correctly """
         test = Test()
@@ -66,10 +89,10 @@ class RestTestCase(unittest.TestCase):
 
         test_response = resttest.run_test(test)
         for failure in test_response.failures:
-            print "REAL FAILURE"
-            print "Test Failure, failure type: {0}, Reason: {1}".format(failure.failure_type, failure.message)
+            print("REAL FAILURE")
+            print("Test Failure, failure type: {0}, Reason: {1}".format(failure.failure_type, failure.message))
             if failure.details:
-                print "Validator/Error details: "+str(failure.details)
+                print("Validator/Error details: "+str(failure.details))
         self.assertFalse(test_response.failures)
         self.assertTrue(test_response.passed)
 
@@ -95,6 +118,42 @@ class RestTestCase(unittest.TestCase):
         test_response = resttest.run_test(test)
         self.assertEqual(True, test_response.passed)
         self.assertEqual(200, test_response.response_code)
+
+    def test_header_extraction(self):
+        test = Test()
+        test.url = self.prefix + '/api/person/1/'
+        key1 = 'server-header'
+        key2 = 'server-header-mixedcase'
+
+        test.extract_binds = {
+            key1: validators.HeaderExtractor.parse('server'),
+            # Verify case-insensitive behavior
+            key2: validators.HeaderExtractor.parse('sErVer')
+        }
+        my_context = Context()
+        test_response = resttest.run_test(test, context=my_context)
+        val1 = my_context.get_value(key1)
+        val2 = my_context.get_value(key2)
+        self.assertEqual(val1, val2)
+        self.assertTrue('wsgi' in val1.lower())
+        self.assertTrue('wsgi' in val2.lower())
+
+    def test_header_validators(self):
+        test = Test()
+        test.url = self.prefix + '/api/person/1/'
+        config = {
+            'header': 'server',
+            'comparator': 'contains',
+            'expected': 'WSGI'
+        }
+        test.validators = list()
+        test.validators.append(validators.parse_validator('comparator', config))
+        result = resttest.run_test(test)
+
+        if result.failures:
+            for fail in result.failures:
+                print(fail)
+        self.assertTrue(result.passed)
 
     def test_failed_get(self):
         """ Test GET that should fail """
@@ -153,7 +212,7 @@ class RestTestCase(unittest.TestCase):
         test_response2 = resttest.run_test(test2)
         self.assertTrue(test_response2.passed)
         obj = json.loads(str(test_response2.body))
-        print json.dumps(obj)
+        print(json.dumps(obj))
 
     def test_delete(self):
         """ Try removing an item """
@@ -184,7 +243,7 @@ class RestTestCase(unittest.TestCase):
 
         # Get absolute path to test file, in the same folder as this test
         path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'content-test.yaml')
-        print path
+        print(path)
         tests = resttest.parse_testsets('http://localhost:8000', resttest.read_test_file(path), working_directory = os.path.dirname(os.path.realpath(__file__)))
         failures = resttest.run_testsets(tests)
         self.assertTrue(failures == 0, 'Simple tests failed where success expected')
@@ -195,7 +254,7 @@ class RestTestCase(unittest.TestCase):
         benchmark_config.url = self.prefix + '/api/person/'
         benchmark_config.add_metric('total_time').add_metric('total_time','median')
         benchmark_result = resttest.run_benchmark(benchmark_config)
-        print "Benchmark - median request time: " + str(benchmark_result.aggregates[0])
+        print("Benchmark - median request time: " + str(benchmark_result.aggregates[0]))
         self.assertTrue(benchmark_config.benchmark_runs, len(benchmark_result.results['total_time']))
 
 if __name__ == "__main__":

@@ -2,13 +2,17 @@ pyresttest
 ==========
 
 # What Is It?
-- A simple but powerful REST testing and benchmarking framework
-- Minimal dependencies, designed to slot into automated configuration management/orchestration tools
+- A REST testing and API microbenchmarking framework
 - Tests are defined in basic YAML or JSON config files, no code needed
+- Minimal dependencies (pycurl, pyyaml), making it easy to deploy on-server for smoketests/healthchecks
+- Supports [generate/extract/validate](advanced_guide.md) mechanisms to create full test scenarios
+- Returns exit codes on failure, to slot into automated configuration management/orchestration tools (also supplies parseable logs)
 - Logic is written and [extensible](extensions.md) in Python
 
 # License
 Apache License, Version 2.0
+
+![Status Badge](http://52.4.228.82:8080/jenkins/buildStatus/icon?job=set-main-build-status)
 
 # Sample Test
 **This will check that APIs accept operations, and will smoketest an application**
@@ -107,7 +111,7 @@ Now, let's get started!
 **This is what testing is for.**
 
 ## System Requirements:
-- A semi-modern linux distro (or maybe Mac OS X)
+- Linux or Mac OS X with python 2.6+ installed and pycurl
 - Do not use a virtualenv (or have it custom configured to find libcurl)
 
 # Quickstart Part 0: Setting Up a Sample REST Service
@@ -394,6 +398,21 @@ A simple URL test is equivalent to a basic GET test with that URL
     - url: "/api/person/"  # This does the same thing
 ```
 
+## Custom HTTP Options (special curl settings)
+For advanced cases, sometimes you will want to use custom Curl settings that don't have a corresponding option in PyRestTest.  
+
+This is easy to do: for each test, you can specify custom Curl arguments with 'curl_option_optionname.'  For this, 'optionname' is case-insensitive and the optionname is a [Curl Easy Option](http://curl.haxx.se/libcurl/c/curl_easy_setopt.html) with 'CURLOPT_' removed. 
+
+For example, to follow redirects up to 5 times (CURLOPT_FOLLOWLOCATION and CURLOPT_MAXREDIRS):
+```yaml
+---
+- test: 
+    - url: "/api/person/1"
+    - curl_option_followlocation: True
+    - curl_option_maxredirs: 5  
+```
+Note that while option names are validated, *no validation* is done on their values.
+
 ## Syntax Limitations
 Whenever possible, I've tried to make reading configuration Be Smart And Do The Right Thing.  That means type conversions are handled wherever possible,
 and fail early if configuration is nonsensical.
@@ -421,7 +440,7 @@ There are a few custom configuration options specific to benchmarks:
 There are two ways to collect performance metrics: raw data, and aggregated stats.
 Each metric may yield raw data, plus one or more aggregate values.
 - *Raw Data*: returns an array of values, one for each benchmark run
-- *Aggregates*: runs a reduction function to return a single value over the entire benchmark run
+- *Aggregates*: runs a reduction function to return a single value over the entire benchmark run (median, average, etc)
 
 To return raw data, in the 'metrics' configuration element, simply input the metric name in a list of values.
 The example below will return raw data for total time and size of download (101 values each).
@@ -547,40 +566,43 @@ You'll need to install rpm-build, and then it should work.
 sudo yum install rpm-build
 ```
 
+# Changelog, (Back)Compatibility, and Releases
+* [The changelog is here](CHANGELOG.md).  
+* Python 2.6 and 2.7 compatible, working on Python 3 support
+    - Tested on Ubuntu 14.x currently, working on CentOS/SuSe tests
+* Releases occur every few months to [PyPi](https://pypi.python.org/pypi/pyresttest/) once a few features are ready to go
+* PyRestTest uses [Semantic Versioning 2.0](http://semver.org/)
+* **Back-compatibility is important! PyRestTest makes a strong effort to maintain command-line and YAML format back-compatibility since 1.0.**
+  - [Extension method signatures](extensions.md) are maintained as much as possible. 
+  - However, internal python implementations are subject to change.
+  - Major version releases (1.x to 2.x, etc) may introduce breaking API changes, but only *with a really darned good reason, and only there's not another way.*
+
 # FAQ
 
 ## Why not pure-python tests?
 - This is written for an environment where Python is not the sole or primary langauge
 - **You totally can do pure-Python tests if you want!**  
+    - [Extensions](extensions.md) provide a stable API for adding more complex functionality in python
+    - All modules can be imported and used as libraries
     - Gotcha: the project is still young, so internal implementation may change often, much more than YAML features
-    - Extensions are intended specifically for adding functionality, they will be the most stable part
-    - Read before you assume: template handling is more complex than you think.
-    - Framework run/execute methods in pyresttest/resttest.py do *quite* a bit of heavy lifting
 
 ## Why YAML and not XML/JSON?
 - XML is extremely verbose and has many gotchas for parsing
 - You **CAN use JSON for tests**, it's a subset of YAML. See [miniapp-test.json](miniapp-test.json) for an example. 
 - YAML tends to be the most concise, natural, and easy to write of these three options
 
-# Future Plans (rough priority order)
-Top priority, before enhancements: 
-- bugfixes
-- high-value minor usability enhancements (defaults, better error case handling)
-
-0. Refactor complex runner/executor methods into extensible, composable structures for a testing lifecycle
-1. Support for cert-based authentication (simply add test config elements and parsing)
-2. Smarter reporting, better reporting/logging of test execution and failures
-3. Depends on 0: support parallel execution of a test set where extract/generators not used
-4. Repeat tests (for fuzzing) and setUp/tearDown
-5. Hooks for reporting on test results
-6. Improve Python APIs and document how to do pure-python testing with this
-7. Tentative: add a one-pass optimizer for benchmark/test execution (remove redundant templating)
+## Does it do load tests?
+- No, this is a separate niche and there are already many excellent tools to fill it
+- Adding load testing features would greatly increase complexity
+- But some form might come eventually!
 
 ## Feedback
-We welcome any feedback you have, including pull requests, reported issues, etc
+We welcome any feedback you have, including pull requests, reported issues, etc!
+
+For instructions on building, see [building.md](building.md).
 
 For pull requests to get easily merged, please:
-- Include unit tests
+- Include unit tests, and verify that run_tests.sh passes
 - Include documentation as appropriate
 - Attempt to adhere to PEP8 style guidelines and project style
 

@@ -6,6 +6,12 @@ import string
 import parsing
 import os
 import re
+import sys
+
+# Python 3 compatibility
+if sys.version_info[0] == 3:
+    from past.builtins import basestring
+    from past.builtins import long
 
 """
 Validator/Extractor logic for utility use
@@ -91,6 +97,10 @@ class Failure(object):
     validator = None
 
     def __nonzero__(self):
+        """ Failure objects test as False, simplifies coding with them """
+        return False
+
+    def __bool__(self):
         """ Failure objects test as False, simplifies coding with them """
         return False
 
@@ -201,21 +211,39 @@ class MiniJsonExtractor(AbstractExtractor):
 
 
 class HeaderExtractor(AbstractExtractor):
-    """ Extractor that pulls out a named header """
+    """ Extractor that pulls out a named header value... or list of values if multiple values defined """
     extractor_type = 'header'
     is_header_extractor = True
 
     def extract_internal(self, query=None, args=None, body=None, headers=None):
-        try:
-            return headers[query.lower()]
-        except Exception:
-            return None
+        low = query.lower()
+        extracted = [y[1] for y in filter(lambda x: x[0] == low, headers)]  # Value for all matching key names
+        if len(extracted) == 0:
+            raise ValueError("Invalid header name {0}".format(query))
+        elif len(extracted) == 1:
+            return extracted[0]
+        else:
+            return extracted
 
     @classmethod
     def parse(cls, config, extractor_base=None):
         base = HeaderExtractor()
         return cls.configure_base(config, base)
 
+class RawBodyExtractor(AbstractExtractor):
+    """ Extractor that returns the full request body """
+    extractor_type = 'raw_body'
+    is_header_extractor = False
+    is_body_extractor = True
+
+    def extract_internal(self, query=None, args=None, body=None, headers=None):
+        return body
+
+    @classmethod
+    def parse(cls, config, extractor_base=None):
+        ## Doesn't take any real configuration
+        base = RawBodyExtractor()
+        return base
 
 def _get_extractor(config_dict):
     """ Utility function, get an extract function for a single valid extractor name in config
@@ -469,6 +497,7 @@ def register_comparator(comparator_name, comparator_function):
 # --- REGISTRY OF EXTRACTORS AND VALIDATORS ---
 register_extractor('jsonpath_mini', MiniJsonExtractor.parse)
 register_extractor('header', HeaderExtractor.parse)
+register_extractor('raw_body', RawBodyExtractor.parse)
 # ENHANCEME: add JsonPath-rw support for full JsonPath syntax
 # ENHANCEME: add elementree support for xpath extract on XML, very simple no?
 #  See: https://docs.python.org/2/library/xml.etree.elementtree.html, findall syntax

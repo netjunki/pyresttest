@@ -92,19 +92,33 @@ class ValidatorsTest(unittest.TestCase):
     def test_header_extractor(self):
         query = 'content-type'
         extractor = validators.HeaderExtractor.parse(query)
-        headers = {'content-type': 'application/json'}
+        headers = [('content-type', 'application/json')]
         extracted = extractor.extract(body='blahblah', headers=headers)
-        self.assertEqual(headers[query], extracted)
+        self.assertEqual(headers[0][1], extracted)
 
         # Test case-insensitivity
         query = 'content-Type'
         extractor = validators.HeaderExtractor.parse(query)
         extracted = extractor.extract(body='blahblah', headers=headers)
-        self.assertEqual(headers[query.lower()], extracted)
+        self.assertEqual(headers[0][1], extracted)
 
-        headers = {'foo': 'bar'}
+        # Throws exception if invalid header
+        headers = [('foo', 'bar')]
+        try:
+            extracted = extractor.extract(body='blahblah', headers=headers)
+            self.fail("Extractor should throw exception on invalid key")
+        except ValueError:
+            pass
+
+    def test_header_extractor_duplicatekeys(self):
+        # Test for handling of multiple headders
+        query = 'content-Type'
+        headers = [('content-type', 'application/json'), ('content-type', 'x-json-special')]
+        extractor = validators.HeaderExtractor.parse(query)
         extracted = extractor.extract(body='blahblah', headers=headers)
-        self.assertEqual(None, extracted)
+        self.assertTrue(isinstance(extracted, list))
+        self.assertEqual(headers[0][1], extracted[0])
+        self.assertEqual(headers[1][1], extracted[1])
 
     def test_parse_header_extractor(self):
         query = 'content-type'
@@ -112,6 +126,18 @@ class ValidatorsTest(unittest.TestCase):
         self.assertTrue(isinstance(extractor, validators.HeaderExtractor))
         self.assertTrue(extractor.is_header_extractor)
         self.assertFalse(extractor.is_body_extractor)
+
+    def test_raw_body_extractor(self):
+        query = ''
+        extractor = validators.parse_extractor('raw_body', None)
+        extractor = validators.parse_extractor('raw_body', query)
+        self.assertTrue(isinstance(extractor, validators.RawBodyExtractor))
+        self.assertTrue(extractor.is_body_extractor)
+        self.assertFalse(extractor.is_header_extractor)
+
+        bod = 'j1j21io312j3'
+        val = extractor.extract(body=bod, headers='')
+        self.assertEqual(bod, val)
 
     def test_abstract_extractor_parse(self):
         """ Test parsing a basic abstract extractor """
@@ -237,7 +263,7 @@ class ValidatorsTest(unittest.TestCase):
 
         self.assertTrue(comp_validator.validate(body=myjson_pass))
         self.assertFalse(comp_validator.validate(body=myjson_fail))
-        
+
     def test_validator_compare_ne(self):
         """ Basic test of the inequality validator"""
         config = {
@@ -319,7 +345,7 @@ class ValidatorsTest(unittest.TestCase):
         self.assertEqual(failure.failure_type, validators.FAILURE_VALIDATOR_FAILED)
         expected_details = 'Extractor: Extractor Type: jsonpath_mini,  Query: "key.val", Templated?: False'
         self.assertEqual(expected_details, failure.details)
-        print "Failure config: "+str(failure.details)
+        print("Failure config: "+str(failure.details))
         self.assertEqual(comp, failure.validator)
 
         failure = comp.validate(body='{"id": 3, "key": {"val": 4}')
