@@ -81,6 +81,8 @@ class TestConfig:
     verbose = False
     ssl_insecure = False
     noproxy = False
+    cert = None
+    cert_password = None
 
     # Binding and creation of generators
     variable_binds = None
@@ -250,7 +252,12 @@ def parse_configuration(node, base_config=None):
                 gen = parse_generator(generator_config)
                 gen_map[str(generator_name)] = gen
             test_config.generators = gen_map
-
+        elif key == u'cert':
+            if ":" in value:
+                test_config.cert,test_config.cert_password = value.split(":")
+            else:
+                test_config.cert = value
+                
     return test_config
 
 def read_file(path):
@@ -284,6 +291,10 @@ def run_test(mytest, test_config = TestConfig(), context = None):
     if test_config.ssl_insecure:
         curl.setopt(pycurl.SSL_VERIFYPEER,0)
         curl.setopt(pycurl.SSL_VERIFYHOST,0)
+    if test_config.cert != None:
+        curl.setopt(pycurl.SSLCERT, test_config.cert)
+        if test_config.cert_password != None:
+            curl.setopt(pycurl.SSLKEYPASSWD, test_config.cert_password)
     if test_config.noproxy:
         curl.setopt(pycurl.NOPROXY,test_config.noproxy)
 
