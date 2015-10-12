@@ -6,6 +6,108 @@ from binding import Context
 class ValidatorsTest(unittest.TestCase):
     """ Testing for validators and extract functions """
 
+    def test_contains_operators(self):
+        """ Tests the contains / contained_by """
+        cont_func = validators.COMPARATORS['contains']
+        cont_by_func = validators.COMPARATORS['contained_by']
+
+        self.assertTrue(cont_func('abagooberab23', 'goob'))
+        self.assertTrue(cont_by_func('goob', 'abagooberab23'))
+        myarray = ['math', 1, None, u'lest']
+        self.assertTrue(cont_func(myarray, 1))
+        self.assertTrue(cont_func(myarray, None))
+        self.assertTrue(cont_by_func(None, myarray))
+        self.assertTrue(cont_func({'key': 'val'}, 'key'))
+        self.assertTrue(cont_by_func('key', {'key': 'val'}))
+
+        # Failure cases
+        self.assertFalse(cont_func(None, 'test'))
+        self.assertFalse(cont_by_func('test', None))
+        self.assertFalse(cont_func(myarray, 'notinit'))
+        self.assertFalse(cont_by_func('notinit', myarray))
+
+    def test_type_comparator(self):
+        """ Complex verification of the type test method, heh """
+
+        type_test = validators.COMPARATORS['type']
+        hasFailed = False
+        instances = {
+            'string': 'goober',
+            'int': 1,
+            'float': 0.5,
+            'boolean': False,
+            'number': 1,
+            'array': [4, 'val'],
+            'list': ['my', 1, None],
+            'none': None,
+            'null': None,
+            'scalar': 4.0,
+            'collection': ['collection', 1, None],
+            'dict': {1: 'ring', 4: 1, 'gollum': 'smeagol'}
+        }
+
+        # Check for basic types that they pass expected values
+        for mytype, myinstance in instances.items():
+            try:
+                self.assertTrue(type_test(myinstance, mytype))
+            except AssertionError:
+                print('Type test operator failed where should pass for type {0} and value {1}'.format(
+                    mytype, myinstance))
+                hasFailed = True
+
+        if hasFailed:
+            self.fail("Type test operator failed testing, see reasons above!")
+
+    def test_type_comparator_failures(self):
+        """ Test cases where type comparator should fail """
+        type_test = validators.COMPARATORS['type']
+        hasFailed = False
+
+        failing_instances = {
+            'string': 1,
+            'int': {'nope': 3},
+            'float': 3,
+            'boolean': None,
+            'number': 'lolz',
+            'array': False,
+            'list': 'string here',
+            'none': 4,
+            'scalar': {'key': 'val'},
+            'collection': 'string',
+            'dict': [1, 2, 3]
+        }
+
+        # Check for complex types that they don't pass expected values
+        for mytype, myinstance in failing_instances.items():
+            try:
+                self.assertFalse(type_test(myinstance, mytype))
+            except AssertionError:
+                print('Type test operator passed where should fail for type {0} and value {1}'.format(
+                    mytype, myinstance))
+                hasFailed = True
+        if hasFailed:
+            self.fail("Type test operator failed testing, see reasons above!")
+
+    def test_type_comparator_specialcases(self):
+        """ Covers things such as case handling and exception throwing """
+        type_test = validators.COMPARATORS['type']
+        self.assertTrue(type_test('string', 'scALar'))
+        self.assertTrue(type_test(None, 'scalar'))
+
+        try:
+            type_test(3, 'doesnotexist')
+            self.fail(
+                'Type test comparator throws exception if you test against an undefined type')
+        except TypeError:
+            pass
+
+    def test_safe_length(self):
+        self.assertEqual(1, validators.safe_length('s'))
+        self.assertEqual(2, validators.safe_length(['text', 2]))
+        self.assertEqual(2, validators.safe_length({'key': 'val', 1: 2}))
+        self.assertEqual(-1, validators.safe_length(False))
+        self.assertEqual(-1, validators.safe_length(None))
+
     def test_validatortest_exists(self):
         func = validators.VALIDATOR_TESTS['exists']
         self.assertTrue(func('blah'))
@@ -21,7 +123,6 @@ class ValidatorsTest(unittest.TestCase):
         self.assertFalse(func('False'))
         self.assertTrue(func(None))
 
-
     def test_dict_query(self):
         """ Test actual query logic """
         mydict = {'key': {'val': 3}}
@@ -29,7 +130,7 @@ class ValidatorsTest(unittest.TestCase):
         val = validators.MiniJsonExtractor.query_dictionary(query, mydict)
         self.assertEqual(3, val)
 
-        array = [1,2,3]
+        array = [1, 2, 3]
         mydict = {'key': {'val': array}}
         val = validators.MiniJsonExtractor.query_dictionary(query, mydict)
         self.assertEqual(array, val)
@@ -76,7 +177,8 @@ class ValidatorsTest(unittest.TestCase):
 
         extracted = extractor.extract(body=myjson)
         self.assertEqual(3, extracted)
-        self.assertEqual(extracted, extractor.extract(body=myjson, context=context))
+        self.assertEqual(extracted, extractor.extract(
+            body=myjson, context=context))
 
         try:
             val = extractor.extract(body='[31{]')
@@ -113,7 +215,8 @@ class ValidatorsTest(unittest.TestCase):
     def test_header_extractor_duplicatekeys(self):
         # Test for handling of multiple headders
         query = 'content-Type'
-        headers = [('content-type', 'application/json'), ('content-type', 'x-json-special')]
+        headers = [('content-type', 'application/json'),
+                   ('content-type', 'x-json-special')]
         extractor = validators.HeaderExtractor.parse(query)
         extracted = extractor.extract(body='blahblah', headers=headers)
         self.assertTrue(isinstance(extracted, list))
@@ -160,7 +263,8 @@ class ValidatorsTest(unittest.TestCase):
         ext.extractor_type = 'bleh'
         ext.args = {'cheesy': 'poofs'}
 
-        expected = "Extractor type: {0}, query: {1}, is_templated: {2}, args: {3}".format(ext.extractor_type, ext.query, ext.is_templated, ext.args)
+        expected = "Extractor type: {0}, query: {1}, is_templated: {2}, args: {3}".format(
+            ext.extractor_type, ext.query, ext.is_templated, ext.args)
         self.assertEqual(expected, str(ext))
 
     def test_abstract_extractor_templating(self):
@@ -185,23 +289,27 @@ class ValidatorsTest(unittest.TestCase):
 
         # Check empty context & args uses okay
         context = Context()
-        self.assertEqual(expected_string, extractor.get_readable_config(context=context))
+        self.assertEqual(
+            expected_string, extractor.get_readable_config(context=context))
         context.bind_variable('foo', 'bar')
-        self.assertEqual(expected_string, extractor.get_readable_config(context=context))
+        self.assertEqual(
+            expected_string, extractor.get_readable_config(context=context))
         extractor.args = dict()
-        self.assertEqual(expected_string, extractor.get_readable_config(context=context))
+        self.assertEqual(
+            expected_string, extractor.get_readable_config(context=context))
 
         # Check args output is handled correctly
         extractor.args = {'caseSensitive': True}
-        self.assertEqual(expected_string+", Args: "+str(extractor.args), extractor.get_readable_config(context=context))
+        self.assertEqual(expected_string + ", Args: " + str(extractor.args),
+                         extractor.get_readable_config(context=context))
 
         # Check template handling is okay
         config = {'template': 'key.$templated'}
         context.bind_variable('templated', 'val')
         extractor = validators.parse_extractor('jsonpath_mini', config)
         expected_string = 'Extractor Type: jsonpath_mini,  Query: "key.val", Templated?: True'
-        self.assertEqual(expected_string, extractor.get_readable_config(context=context))
-
+        self.assertEqual(
+            expected_string, extractor.get_readable_config(context=context))
 
     def test_parse_extractor(self):
         """ Test parsing an extractor using the registry """
@@ -234,10 +342,10 @@ class ValidatorsTest(unittest.TestCase):
         comp = validator.validate(body=myjson)
 
         # Try it with templating
-        config['jsonpath_mini']={'template':'key.$node'}
+        config['jsonpath_mini'] = {'template': 'key.$node'}
         validator = validators.parse_validator('comparator', config)
         context = Context()
-        context.bind_variable('node','val')
+        context.bind_variable('node', 'val')
         comp = validator.validate(myjson, context=context)
 
     def test_parse_validator_nocomparator(self):
@@ -309,7 +417,7 @@ class ValidatorsTest(unittest.TestCase):
         self.assertFalse(comp.validate(body=myjson_fail, context=context))
 
         # Template expected
-        config['expected'] = {'template' : '$id'}
+        config['expected'] = {'template': '$id'}
         context.bind_variable('id', 3)
         self.assertTrue(comp.validate(body=myjson_pass, context=context))
         self.assertFalse(comp.validate(body=myjson_fail, context=context))
@@ -340,12 +448,14 @@ class ValidatorsTest(unittest.TestCase):
 
         # Test the validator failure object handling
         self.assertFalse(failure)
-        self.assertEqual(failure.message, 'Comparison failed, evaluating eq(4, 3) returned False')
+        self.assertEqual(
+            failure.message, 'Comparison failed, evaluating eq(4, 3) returned False')
         self.assertEqual(failure.message, str(failure))
-        self.assertEqual(failure.failure_type, validators.FAILURE_VALIDATOR_FAILED)
+        self.assertEqual(failure.failure_type,
+                         validators.FAILURE_VALIDATOR_FAILED)
         expected_details = 'Extractor: Extractor Type: jsonpath_mini,  Query: "key.val", Templated?: False'
         self.assertEqual(expected_details, failure.details)
-        print("Failure config: "+str(failure.details))
+        print("Failure config: " + str(failure.details))
         self.assertEqual(comp, failure.validator)
 
         failure = comp.validate(body='{"id": 3, "key": {"val": 4}')
@@ -366,7 +476,8 @@ class ValidatorsTest(unittest.TestCase):
         validation_result = validator.validate(body=myjson_fail)
         self.assertFalse(validation_result)
         self.assertTrue(isinstance(validation_result, validators.Failure))
-        self.assertEqual(validation_result.message, "Extract and test validator failed on test: exists(None)")
+        self.assertEqual(validation_result.message,
+                         "Extract and test validator failed on test: exists(None)")
 
 if __name__ == '__main__':
     unittest.main()

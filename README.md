@@ -2,7 +2,7 @@ pyresttest
 ==========
 
 # What Is It?
-- A REST testing and API microbenchmarking framework
+- A REST testing and API microbenchmarking tool
 - Tests are defined in basic YAML or JSON config files, no code needed
 - Minimal dependencies (pycurl, pyyaml), making it easy to deploy on-server for smoketests/healthchecks
 - Supports [generate/extract/validate](advanced_guide.md) mechanisms to create full test scenarios
@@ -12,7 +12,7 @@ pyresttest
 # License
 Apache License, Version 2.0
 
-![Status Badge](http://52.4.228.82:8080/jenkins/buildStatus/icon?job=set-main-build-status)
+![Status Badge](http://52.4.228.82:8080/jenkins/buildStatus/icon?job=set-main-build-status) [![PyPI version](https://badge.fury.io/py/pyresttest.svg)](https://badge.fury.io/py/pyresttest) and [Changelog](CHANGELOG.md)
 
 # Sample Test
 **This will check that APIs accept operations, and will smoketest an application**
@@ -21,13 +21,13 @@ Apache License, Version 2.0
 - config:
     - testset: "Basic tests"
 
-- test: # create entity
+- test: 
     - name: "Basic get"
     - url: "/api/person/"
-- test: # create entity
+- test: 
     - name: "Get single person"
     - url: "/api/person/1/"
-- test: # create entity
+- test: 
     - name: "Delete a single person, verify that works"
     - url: "/api/person/1/"
     - method: 'DELETE'
@@ -37,11 +37,15 @@ Apache License, Version 2.0
     - method: "PUT"
     - body: '{"first_name": "Gaius","id": 1,"last_name": "Baltar","login": "gbaltar"}'
     - headers: {'Content-Type': 'application/json'}
+    - validators:  # This is how we do more complex testing!
+        - compare: {header: content-type, comparator: contains, expected:'json'}
+        - compare: {jsonpath_mini: 'login', expected: 'gbaltar'}  # JSON extraction
+        - compare: {raw_body:"", comparator:contains, expected: 'Baltar' }  # Tests on raw response
 - test: # create entity by POST
     - name: "Create person"
     - url: "/api/person/"
     - method: "POST"
-    - body: '{"first_name": "Willim","last_name": "Adama","login": "theadmiral"}'
+    - body: '{"first_name": "William","last_name": "Adama","login": "theadmiral"}'
     - headers: {Content-Type: application/json}
   ```
 
@@ -49,13 +53,25 @@ Apache License, Version 2.0
 The best way to install PyRestTest is via Python's pip packaging tool.
 
 If that is not installed, we'll need to install it first:
-```shell
-wget https://bootstrap.pypa.io/get-pip.py && sudo python get-pip.py
-```
+* Ubuntu/Debian: (sudo) `apt-get install python-pip`
+* CentOS/RHEL: (sudo) `yum install python-pip`
+* Mac OS X with homebrew: `brew install python`  (it's included)
+* Or with just python installed: `wget https://bootstrap.pypa.io/get-pip.py && sudo python get-pip.py`
+
+**Then install package python-pycurl:**
+* Ubuntu: (sudo) `apt-get install python-pycurl`
+* CentOS/RHEL: (sudo) `yum install python-pycurl`
+*This is needed because the pycurl dependency may fail to install by pip.*
+
 Then we install pyresttest:
 ```shell
 sudo pip install pyresttest
 ```
+
+**If it fails like this:** 
+`__main__.ConfigurationError: Could not run curl-config: [Errno 2] No such file or directory`
+
+Then you need to install python-pycurl (pip tried and failed to install it)
 
 There are also options to [install from repo](#installation-without-pip), or [build an RPM](#pure-rpm-based-install).
 
@@ -69,10 +85,10 @@ The root folder of this library also includes a ton of example tests.
 
 ## Running A Simple Test
 
-Run a simple test that checks a URL returns a 200:
+Run a basic test of the github API:
 
 ```shell
-resttest.py https://github.com simple_test.yaml
+resttest.py https://api.github.com examples/github_api_smoketest.yaml
 ```
 
 ## Using JSON Validation
@@ -81,7 +97,7 @@ A simple set of tests that show how json validation can be used to check content
 Test includes both successful and unsuccessful validation using github API.
 
 ```shell
-resttest.py https://api.github.com github_api_test.yaml
+resttest.py https://api.github.com examples/github_api_test.yaml
 ```
 
 (For help: python resttest.py  --help )
@@ -90,13 +106,13 @@ resttest.py https://api.github.com github_api_test.yaml
 Same as the other test but running in interactive mode.
 
 ```python
-resttest.py https://api.github.com github_api_test.yaml --interactive true --print-bodies true
+resttest.py https://api.github.com examples/github_api_test.yaml --interactive true --print-bodies true
 ```
 
 ## Verbose Output
 
 ```shell
-resttest.py https://api.github.com github_api_test.yaml --log debug
+resttest.py https://api.github.com examples/github_api_test.yaml --log debug
 ```
 
 # Getting Started: Quickstart Requirements
@@ -111,7 +127,7 @@ Now, let's get started!
 **This is what testing is for.**
 
 ## System Requirements:
-- Linux or Mac OS X with python 2.6+ installed and pycurl
+- Linux or Mac OS X with python 2.6+ or 2.7 installed and pycurl
 - Do not use a virtualenv (or have it custom configured to find libcurl)
 
 # Quickstart Part 0: Setting Up a Sample REST Service
@@ -384,7 +400,7 @@ There are 5 top level test syntax elements:
 ```yaml
 ---
 # Will load the test sets from miniapp-test.yaml and run them
-- import: miniapp-test.yaml
+- import: examples/miniapp-test.yaml
 ```
 
 ## Url Test
@@ -423,7 +439,7 @@ One caveat: *if you define the same element (example, URL) twice in the same enc
 
 
 # Benchmarking?
-Oh, yes please! PyRestTest is now benchmark-enabled, allowing you to collect low-level network performance metrics from Curl itself.
+Oh, yes please! PyRestTest allows you to collect low-level network performance metrics from Curl itself.
 
 Benchmarks are based off of tests: they extend the configuration elements in a test, allowing you to configure the REST call similarly.
 However, they do not perform validation on the HTTP response, instead they collect metrics.
@@ -551,10 +567,9 @@ find -iname '*.rpm'   # Gets the RPM name
 ### Installing from RPM
 ```shell
 sudo yum localinstall my_rpm_name
-sudo yum install PyYAML
+sudo yum install PyYAML python-pycurl
 ```
-- You need to install PyYAML manually because Python distutils can't translate python dependencies to RPM packages. 
-- This is not needed for PyCurl because it is built in by default
+- You need to install PyYAML & PyCurl manually because Python distutils can't translate python dependencies to RPM packages. 
 
 **Gotcha:** Python distutils add a dependency on your major python version. 
 **This means you can't build an RPM for a system with Python 2.6 on a Python 2.7 system.**
@@ -568,8 +583,8 @@ sudo yum install rpm-build
 
 # Changelog, (Back)Compatibility, and Releases
 * [The changelog is here](CHANGELOG.md).  
-* Python 2.6 and 2.7 compatible, working on Python 3 support
-    - Tested on Ubuntu 14.x currently, working on CentOS/SuSe tests
+* Python 2.6 and 2.7 compatible (tested on Ubuntu 14/python 2.7 and CentOS 6/python 6.6)
+* [Working on Python 3 support](https://github.com/svanoort/pyresttest/issues/98)
 * Releases occur every few months to [PyPi](https://pypi.python.org/pypi/pyresttest/) once a few features are ready to go
 * PyRestTest uses [Semantic Versioning 2.0](http://semver.org/)
 * **Back-compatibility is important! PyRestTest makes a strong effort to maintain command-line and YAML format back-compatibility since 1.0.**
@@ -588,7 +603,7 @@ sudo yum install rpm-build
 
 ## Why YAML and not XML/JSON?
 - XML is extremely verbose and has many gotchas for parsing
-- You **CAN use JSON for tests**, it's a subset of YAML. See [miniapp-test.json](miniapp-test.json) for an example. 
+- You **CAN use JSON for tests**, it's a subset of YAML. See [miniapp-test.json](examples/miniapp-test.json) for an example. 
 - YAML tends to be the most concise, natural, and easy to write of these three options
 
 ## Does it do load tests?
@@ -606,4 +621,4 @@ For pull requests to get easily merged, please:
 - Include documentation as appropriate
 - Attempt to adhere to PEP8 style guidelines and project style
 
-Bear in mind that this is largely a one-man, outside-of-working-hours effort at the moment, so response times will vary.
+Bear in mind that this is largely a one-man, outside-of-working-hours effort at the moment, so response times will vary.  That said: every feature request gets heard, and even if it takes a while, all the reasonable features will get incorporated.  **If you fork the main repo, check back periodically... you may discover that the next release includes something to meet your needs and then some!**
