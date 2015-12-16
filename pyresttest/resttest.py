@@ -14,17 +14,21 @@ import time
 import datetime
 
 try:
-    from cStringIO import StringIO
+    from cStringIO import StringIO as MyIO
 except:
     try:
-        from StringIO import StringIO
+        from StringIO import StringIO as MyIO
     except ImportError:
-        from io import StringIO
+        from io import BytesIO as MyIO
 
+ESCAPE_DECODING = 'string-escape'
 # Python 3 compatibility
-if sys.version_info[0] == 3:
+if sys.version_info[0] > 2:
     from past.builtins import basestring
     from builtins import range as xrange
+    ESCAPE_DECODING = 'unicode_escape'
+
+from six import text_type
 
 # Pyresttest internals
 from binding import Context
@@ -35,6 +39,7 @@ import validators
 from validators import Failure
 from tests import Test, DEFAULT_TIMEOUT
 from benchmarks import Benchmark, AGGREGATES, METRICS, parse_benchmark
+
 """
 Executable class, ties everything together into the framework.
 Module responsibilities:
@@ -44,7 +49,7 @@ Module responsibilities:
 - Collect and report on test/benchmark results
 - Perform analysis on benchmark results
 """
-
+HEADER_ENCODING ='ISO-8859-1' # Per RFC 2616
 LOGGING_LEVELS = {'debug': logging.DEBUG,
                   'info': logging.INFO,
                   'warning': logging.WARNING,
@@ -143,9 +148,6 @@ class TestResponse:
     def __str__(self):
         return json.dumps(self, default=safe_to_json)
 
-    def unicode_body(self):
-        return unicode(self.body.decode('UTF-8'))
-
 
 def read_test_file(path):
     """ Read test file at 'path' in YAML """
@@ -159,6 +161,8 @@ def parse_headers(header_string):
     """ Parse a header-string into individual headers
         Implementation based on: http://stackoverflow.com/a/5955949/95122
         Note that headers are a list of (key, value) since duplicate headers are allowed
+
+        NEW NOTE: keys & values are unicode strings, but can only contain ISO-8859-1 characters
     """
     # First line is request line, strip it out
     if not header_string:
@@ -166,6 +170,12 @@ def parse_headers(header_string):
     request, headers = header_string.split('\r\n', 1)
     if not headers:
         return list()
+
+    # Python 2.6 message header parsing fails for Unicode strings, 2.7 is fine. Go figure.
+    if sys.version_info < (2,7):
+        header_msg = message_from_string(headers.encode(HEADER_ENCODING))
+        return [(text_type(k.lower(), HEADER_ENCODING), text_type(v, HEADER_ENCODING))
+            for k, v in header_msg.items()]
     else:
         header_msg = message_from_string(headers)
         # Note: HTTP headers are *case-insensitive* per RFC 2616
@@ -215,7 +225,7 @@ def parse_testsets(base_url, test_structure, test_files=set(), working_directory
                 elif key == u'url':  # Simple test, just a GET to a URL
                     mytest = Test()
                     val = node[key]
-                    assert isinstance(val, str) or isinstance(val, unicode)
+                    assert isinstance(val, basestring)
                     mytest.url = base_url + val
                     tests_out.append(mytest)
                 elif key == u'test':  # Complex test with additional parameters
@@ -296,8 +306,8 @@ def run_test(mytest, test_config=TestConfig(), context=None):
     result.test = templated_test
 
     # reset the body, it holds values from previous runs otherwise
-    headers = StringIO()
-    body = StringIO()
+    headers = MyIO()
+    body = MyIO()
     curl.setopt(pycurl.WRITEFUNCTION, body.write)
     curl.setopt(pycurl.HEADERFUNCTION, headers.write)
     if test_config.verbose:
@@ -345,7 +355,7 @@ def run_test(mytest, test_config=TestConfig(), context=None):
     # Retrieve values
     result.body = body.getvalue()
     body.close()
-    result.response_headers = headers.getvalue()
+    result.response_headers = text_type(headers.getvalue(), HEADER_ENCODING)  # Per RFC 2616
     headers.close()
 
     response_code = curl.getinfo(pycurl.RESPONSE_CODE)
@@ -408,7 +418,7 @@ def run_test(mytest, test_config=TestConfig(), context=None):
     if test_config.print_bodies or not result.passed:
         if test_config.interactive:
             print("RESPONSE:")
-        print(result.body.decode("string-escape"))
+        print(result.body.decode(ESCAPE_DECODING))
 
     if test_config.print_headers or not result.passed:
         if test_config.interactive:
@@ -703,11 +713,11 @@ def run_testsets(testsets):
         failures = group_failure_counts[group]
         total_failures = total_failures + failures
         if (failures > 0):
-            print(u'Test Group ' + group + u' FAILED: ' + str((test_count -
-                                                               failures)) + '/' + str(test_count) + u' Tests Passed!')
+            print('\033[91m' + u'Test Group ' + group + u' FAILED: ' +
+                  str((test_count - failures)) + '/' + str(test_count) + u' Tests Passed!' + '\033[0m')
         else:
-            print(u'Test Group ' + group + u' SUCCEEDED: ' + str((test_count - 
-                                                                  failures)) + '/' + str(test_count) + u' Tests Passed!')
+            print('\033[92m' + u'Test Group ' + group + u' SUCCEEDED: ' +
+                  str((test_count - failures)) + '/' + str(test_count) + u' Tests Passed!' + '\033[0m')
             
         if myconfig.junit:
             outputxml = open("test-"+group.lower().replace(" ","-")+".xml","w")
