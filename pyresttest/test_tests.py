@@ -2,10 +2,14 @@
 
 import unittest
 import string
-from tests import *
-from binding import Context
-from contenthandling import ContentHandler
-import generators
+
+from . import tests
+from .tests import *
+from . import binding
+from .binding import Context
+from . import contenthandling
+from .contenthandling import ContentHandler
+from . import generators
 
 PYTHON_MAJOR_VERSION = sys.version_info[0]
 if PYTHON_MAJOR_VERSION > 2:
@@ -14,8 +18,9 @@ else:
     import mock
 
 # Python 3 compatibility shims
-from six import binary_type
-from six import text_type
+from . import six
+from .six import binary_type
+from .six import text_type
 
 class TestsTest(unittest.TestCase):
     """ Testing for basic REST test methods, how meta! """
@@ -56,6 +61,24 @@ class TestsTest(unittest.TestCase):
             val = coerce_list_of_ints('goober')
             fail("Shouldn't allow coercing a random string to a list of ints")
         except:
+            pass
+
+    def test_parse_curloption(self):
+        """ Verify issue with curloption handling from https://github.com/svanoort/pyresttest/issues/138 """
+        testdefinition = {"url": "/ping", "curl_option_timeout": 14, 'curl_Option_interface': 'doesnotexist'}
+        test = Test.parse_test('', testdefinition)
+        print(test.curl_options)
+        self.assertTrue('TIMEOUT' in test.curl_options)
+        self.assertTrue('INTERFACE' in test.curl_options)
+        self.assertEqual(14, test.curl_options['TIMEOUT'])
+        self.assertEqual('doesnotexist', test.curl_options['INTERFACE'])
+
+    def test_parse_illegalcurloption(self):
+        testdefinition = {"url": "/ping", 'curl_Option_special': 'value'}
+        try:
+            test = Test.parse_test('', testdefinition)
+            fail("Error: test parsing should fail when given illegal curl option")
+        except ValueError:
             pass
 
     def test_parse_test(self):

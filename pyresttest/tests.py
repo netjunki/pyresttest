@@ -3,10 +3,14 @@ import os
 import copy
 import json
 import pycurl
-from contenthandling import ContentHandler
-import validators
 import sys
-from parsing import *
+
+
+from . import contenthandling
+from .contenthandling import ContentHandler
+from . import validators
+from . import parsing
+from .parsing import *
 
 # Find the best implementation available on this platform
 try:
@@ -26,10 +30,11 @@ else:
     import urlparse
 
 # Python 3 compatibility shims
-from six import binary_type
-from six import text_type
-from six import iteritems
-from six.moves import filter as ifilter
+from . import six
+from .six import binary_type
+from .six import text_type
+from .six import iteritems
+from .six.moves import filter as ifilter
 
 """
 Pull out the Test objects and logic associated with them
@@ -513,7 +518,7 @@ class Test(object):
                     output2[str(key)] = str(value)
                 mytest.generator_binds = output2
             elif configelement.startswith('curl_option_'):
-                curlopt = configelement.lstrip('curl_option_').upper()
+                curlopt = configelement[12:].upper()
                 if hasattr(BASECURL, curlopt):
                     if not mytest.curl_options:
                         mytest.curl_options = dict()
