@@ -2,6 +2,7 @@
 import unittest
 
 from . import validators
+from .validators import register_extractor
 from . import binding
 from .binding import Context
 
@@ -417,6 +418,30 @@ class ValidatorsTest(unittest.TestCase):
         self.assertTrue(comp_validator.validate(body=myjson_pass))
         self.assertFalse(comp_validator.validate(body=myjson_fail))
 
+    def test_validator_unicode_comparison(self):
+        """ Checks for implicit unicode -> byte conversion in testing """
+        config = {
+            'raw_body': '.',
+            'comparator': 'contains',
+            'expected': u'stuff'
+        }
+        comp_validator = validators.ComparatorValidator.parse(config)
+        myjson_pass = b'i contain stuff because win'
+        myjson_fail = b'i fail without it'
+        self.assertTrue(comp_validator.validate(body=myjson_pass))
+        self.assertFalse(comp_validator.validate(body=myjson_fail))
+
+        # Let's try this with unicode characters just for poops and giggles
+        config = {
+            'raw_body': '.',
+            'comparator': 'contains',
+            'expected': u'cat😽stuff'
+        }
+        myjson_pass = u'i contain cat😽stuff'.encode('utf-8')
+        myjson_pass_unicode = u'i contain encoded cat😽stuff'
+        self.assertTrue(comp_validator.validate(body=myjson_pass))
+        self.assertTrue(comp_validator.validate(body=myjson_pass_unicode))
+
     def test_validator_compare_ne(self):
         """ Basic test of the inequality validator"""
         config = {
@@ -506,8 +531,36 @@ class ValidatorsTest(unittest.TestCase):
         failure = comp.validate(body='{"id": 3, "key": {"val": 4}')
         self.assertTrue(isinstance(failure, validators.Failure))
 
-    def test_parse_validator_extracttest(self):
-        """ Test parsing for extract test """
+    def test_parse_validator_jmespath_extracttest(self):
+        """ Test parsing for jmespath extract test """
+        try:
+           import jmespath
+           from ext.extractor_jmespath import JMESPathExtractor
+           if not validators.EXTRACTORS.get('jmespath'):
+               register_extractor('jmespath', JMESPathExtractor.parse)
+           config = {
+               'jmespath': 'key.val',
+               'test': 'exists'
+           }
+           myjson_pass = '{"id": 3, "key": {"val": 3}}'
+           myjson_fail = '{"id": 3, "key": {"valley": "wide"}}'
+           validator = validators.ExtractTestValidator.parse(config)
+   
+           validation_result = validator.validate(body=myjson_pass)
+           self.assertTrue(validation_result)
+   
+           validation_result = validator.validate(body=myjson_fail)
+           self.assertFalse(validation_result)
+   
+           self.assertTrue(isinstance(validation_result, validators.Failure))
+           self.assertEqual(validation_result.message,
+                            "Extract and test validator failed on test: exists(None)")
+        except ImportError:
+           pass  # Doesn't run JMESPath test if can't import library
+
+
+    def test_parse_validator_jsonpath_mini_extracttest(self):
+        """ Test parsing for jsonpath_mini extract test """
         config = {
             'jsonpath_mini': 'key.val',
             'test': 'exists'

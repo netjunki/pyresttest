@@ -108,7 +108,7 @@ void do_clone_run(String pyresttestBranch='master'){
 
   // Base installs, including pycurl since it almost never installs right
   String installAptPybase = 'sudo apt-get install -y python-pip python-pycurl'
-  String installAptPybasePy3 = 'sudo apt-get install -y python-pip'  // Should come with it, but just in case!
+  String installAptPybasePy3 = 'sudo apt-get install -y python3-pip'  // Should come with it, but just in case!
   String installYumPybase = 'sudo rpm -ivh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm && sudo yum install -y python-pip python-pycurl'
 
   // Libs needed to run pyresttest
@@ -147,7 +147,7 @@ void do_directinstall_test(String pyresttestBranch='master') {
 
   // Base installs, including pycurl since it almost never installs right
   String installAptPybase = 'sudo apt-get install -y python-pip python-pycurl'
-  String installAptPybasePy3 = 'sudo apt-get install -y python-pip'  // Should come with it, but just in case!
+  String installAptPybasePy3 = 'sudo apt-get install -y python3-pip'  // Should come with it, but just in case!
   String installYumPybase = 'sudo rpm -ivh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm && sudo yum install -y python-pip python-pycurl'
 
   // Libs needed to run pyresttest
@@ -175,7 +175,7 @@ void do_directinstall_test(String pyresttestBranch='master') {
   }
   dir('pyresttest') {
     git url:'https://github.com/svanoort/pyresttest.git', branch:pyresttestBranch
-    stage 'Basic Test: running from setup.py install'
+    stage 'Test Install: setup.py install'
     execute_install_testset([testPy27_directInstall, testPy26_directInstall, testPy34_directInstall], test_direct_names)
   }
 }
@@ -189,7 +189,7 @@ void do_pip_develop_tests(String pyresttestBranch='master') {
 
   // Base installs, including pycurl since it almost never installs right
   String installAptPybase = 'sudo apt-get install -y python-pip python-pycurl'
-  String installAptPybasePy3 = 'sudo apt-get install -y python-pip'  // Should come with it, but just in case!
+  String installAptPybasePy3 = 'sudo apt-get install -y python3-pip'  // Should come with it, but just in case!
   String installYumPybase = 'sudo rpm -ivh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm && sudo yum install -y python-pip python-pycurl'
 
   // Libs needed to run pyresttest
@@ -217,7 +217,7 @@ void do_pip_develop_tests(String pyresttestBranch='master') {
   }
   dir('pyresttest') {
     git url:'https://github.com/svanoort/pyresttest.git', branch:pyresttestBranch
-    stage 'Basic Test: pip develop mode install'
+    stage 'Test Install: using pip develop mode'
     execute_install_testset([testPy27_pip_develop, testPy26_pip_develop, testPy34_pip_develop], test_pip_develop_names)
   }
 }
@@ -231,30 +231,31 @@ void do_pypi_tests(String pyresttestBranch='master', String pypiServer='https://
 
   // Base installs, including pycurl since it almost never installs right
   String installAptPybase = 'sudo apt-get install -y python-pip python-pycurl'
-  String installAptPybasePy3 = 'sudo apt-get install -y python-pip'  // Should come with it, but just in case!
+  String installAptPybasePy3 = 'sudo apt-get install -y python3-pip'  // Should come with it, but just in case!
   String installYumPybase = 'sudo rpm -ivh http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm && sudo yum install -y python-pip python-pycurl'
 
   // Tests
   String testBasic1 = "resttest.py --help | grep 'Usage' "
   String testBasic2 = "pyresttest --help | grep 'Usage' "
   String testImport = 'python -c "from pyresttest import validators"'  // Try importing
-  String testApiDirect = "python pyresttest/resttest.py https://api.github.com examples/github_api_smoketest.yaml"
+  String testApiDirect = "resttest.py https://api.github.com examples/github_api_smoketest.yaml"
   String testApiUtil = "pyresttest https://api.github.com examples/github_api_smoketest.yaml"
 
-  String pyr_install_pypi = "sudo pip install -i $pypiServer"
+  String pyr_install_pypi = "sudo pip install -i $pypiServer pyresttest"
 
   def test_pypi_names = ['setup', 'install-from-pypi', 'test-cmdline1', 'test-cmdline2', 'import-test', 'functional-gh-test', 'test-functional-cmdline']
 
   def testPy26_pypi = [basePy26, [installYumPybase,    pyr_install_pypi, testBasic1, testBasic2, testApiDirect, testApiUtil]]
   def testPy27_pypi = [basePy27, [installAptPybase,    pyr_install_pypi, testBasic1, testBasic2, testApiDirect, testApiUtil]]
-  def testPy34_pypi = [basePy34, [installAptPybasePy3, pyr_install_pypi, testBasic1, testBasic2, testApiDirect, testApiUtil]]
+  def testPy34_pypi = [basePy34, [installAptPybasePy3, 'sudo pip install pyyaml future', pyr_install_pypi, testBasic1, testBasic2, testApiDirect, testApiUtil]]
 
   docker.image('sudo-python3:3.4.3-wheezy').inside() {
     sh 'sudo rm -rf pyresttest-pypi'
   }
   dir('pyresttest-pypi') {
     git url:'https://github.com/svanoort/pyresttest.git', branch:pyresttestBranch
-    stage 'Basic Test: pip develop mode install'
+    sh 'rm -rf pyresttest'
+    stage 'Test Pip Install From TestPyPi'
     execute_install_testset([testPy27_pypi, testPy26_pypi, testPy34_pypi], test_pypi_names)
   }
 }

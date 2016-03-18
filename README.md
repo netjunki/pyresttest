@@ -17,7 +17,7 @@ pyresttest
 - [Other Goodies](#other-goodies)
 - [Basic Test Set Syntax](#basic-test-syntax)
 	- [Import example](#import-example)
-	- [Url Test](#url-test)
+	- [Url Test](#url-test-with-timeout)
 	- [Custom HTTP Options (special curl settings)](#custom-http-options-special-curl-settings)
 	- [Syntax Limitations](#syntax-limitations)
 - [Benchmarking?](#benchmarking)
@@ -31,12 +31,15 @@ pyresttest
 # What Is It?
 - A REST testing and API microbenchmarking tool
 - Tests are defined in basic YAML or JSON config files, no code needed
-- Minimal dependencies (pycurl, pyyaml), making it easy to deploy on-server for smoketests/healthchecks
+- Minimal dependencies (pycurl, pyyaml, optionally future), making it easy to deploy on-server for smoketests/healthchecks
 - Supports [generate/extract/validate](advanced_guide.md) mechanisms to create full test scenarios
 - Returns exit codes on failure, to slot into automated configuration management/orchestration tools (also supplies parseable logs)
 - Logic is written and [extensible](extensions.md) in Python
 
 # Status
+
+**NEW: Full Python 3 Support in Alpha** - download it, 'pip install future' and give it a try!
+ 
 Apache License, Version 2.0
 
 ![Status Badge](http://52.4.228.82:8080/jenkins/buildStatus/icon?job=set-main-build-status) [![PyPI version](https://badge.fury.io/py/pyresttest.svg)](https://badge.fury.io/py/pyresttest) 
@@ -49,17 +52,17 @@ Apache License, Version 2.0
 * The changelog will also show features/fixes currently merged to the master branch but not released to PyPi yet (pending installation tests across platforms). 
 
 # Installation
-PyRestTest works on Linux or Mac with Python 2.6, 2.7, or 3.3+ (alpha status, not released for pip install yet). 
+PyRestTest works on Linux or Mac with Python 2.6, 2.7, or 3.3+ (with module 'future' installed)
 
 **First we need to install package python-pycurl:**
 * Ubuntu/Debian: (sudo) `apt-get install python-pycurl`
 * CentOS/RHEL: (sudo) `yum install python-pycurl`
 * Mac: *don't worry about it*
-* Other platforms: *unsupported.*  You *may* get it to work by installing pycurl & pyyaml manually. No guarantees though.
+* Other platforms: *unsupported.*  You *may* get it to work by installing pycurl & pyyaml manually. Also include 'future' for Python 3. No guarantees though.
 *This is needed because the pycurl dependency may fail to install by pip.  In *very rare* cases you may need to intall python-pyyaml if pip cannot install it correctly.*
 
 **It is easy to install the latest release by pip:**
-(sudo) `pip install pyresttest`
+(sudo) `pip install pyresttest`  (also install 'future' if on Python 3)
 
 **If pip isn't installed, we'll want to install it first:**
 If that is not installed, we'll need to install it first:
@@ -213,15 +216,23 @@ There are 5 top level test syntax elements:
 ```yaml
 ---
 # Will load the test sets from miniapp-test.yaml and run them
+# Note that this will run AFTER the current test set is executed
+# Also note that imported tests get a new Context: any variables defined will be lost between test sets
 - import: examples/miniapp-test.yaml
 ```
 
-## Url Test
-A simple URL test is equivalent to a basic GET test with that URL
+Imports are intended to let you create top-level test suites that run many independent, isolated test scenarios (test sets).
+They may also be used to create sample data or perform cleanup *as long as you don't rely on variables to store this information.*  For example, if one testset creates a user for a set of scenarios, tests that rely on that user's ID need to start by querying the API to get the ID.
+
+## Url Test With Timeout
+A simple URL test is equivalent to a basic GET test with that URL.
+Also shows how to use the timeout option in testset config to descrease the default timeout from 10 seconds to 1. 
+
 ```yaml
 ---
 - config:
     - testset: "Basic tests"
+    - timeout: 1
 - url: "/api/person/"  # This is a simple test
 - test: 
     - url: "/api/person/"  # This does the same thing
@@ -243,13 +254,11 @@ For example, to follow redirects up to 5 times (CURLOPT_FOLLOWLOCATION and CURLO
 Note that while option names are validated, *no validation* is done on their values.
 
 ## Syntax Limitations
-Whenever possible, I've tried to make reading configuration Be Smart And Do The Right Thing.  That means type conversions are handled wherever possible,
-and fail early if configuration is nonsensical.
-
-We're all responsible adults: don't try to give a boolean or list where an integer is expected and it'll play nice.
-
-One caveat: *if you define the same element (example, URL) twice in the same enclosing element, the last value will be used.*  In order to preserve sanity, I use last-value wins.
-
+* Whenever possible, the YAML configuration handler tries to convert variable types as needed.  We're all responsible adults, don't do anything crazy and it will play nicely.
+* Only a handful of elements can use dynamic variables (URLs, headers, request bodies, validators) - there are plans to change this in the next few releases.
+* The templating is quite limited (it's doing simple string subsitution). There are plans to improve this in the next few releases, but it isn't there yet.
+* One caveat: *if you define the same element (example, URL) twice in the same enclosing element, the last value will be used.*  In order to preserve sanity, I use last-value wins.
+* No support for "for-each" on requests/responses natively - this can be done via custom extensions, and may be available in the *distant* future but it's a while out.
 
 # Benchmarking?
 Oh, yes please! PyRestTest allows you to collect low-level network performance metrics from Curl itself.
@@ -423,5 +432,4 @@ Bear in mind that this is largely a one-man, outside-of-working-hours effort at 
 - But some form might come eventually!
 
 ## Why do you use PyCurl and not requests?
-- PyRestTest *needs* the low-level networking features that PyCurl exposes, benchmarking is 100% dependent for this
-- As a wrapper for LibCurl, PyCurl tends to offer a mature and featureful system
+- Maybe eventually.  PyRestTest needs the low-level features of PyCurl for benchmarking, and benefits from its performance.  However we may eventually abstract some of the core testing features away to allow for pure-python execution

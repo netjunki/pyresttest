@@ -312,7 +312,7 @@ def read_file(path):
     return string
 
 
-def run_test(mytest, test_config=TestConfig(), context=None):
+def run_test(mytest, test_config=TestConfig(), context=None, curl_handle=None, *args, **kwargs):
     """ Put together test pieces: configure & run actual test, return results """
 
     # Initialize a context if not supplied
@@ -323,7 +323,7 @@ def run_test(mytest, test_config=TestConfig(), context=None):
     mytest.update_context_before(my_context)
     templated_test = mytest.realize(my_context)
     curl = templated_test.configure_curl(
-        timeout=test_config.timeout, context=my_context)
+        timeout=test_config.timeout, context=my_context, curl_handle=curl_handle)
     result = TestResponse()
     result.test = templated_test
 
@@ -450,11 +450,10 @@ def run_test(mytest, test_config=TestConfig(), context=None):
     # TODO add string escape on body output
     logger.debug(result)
 
-    curl.close()
     return result
 
 
-def run_benchmark(benchmark, test_config=TestConfig(), context=None):
+def run_benchmark(benchmark, test_config=TestConfig(), context=None, *args, **kwargs):
     """ Perform a benchmark, (re)using a given, configured CURL call to do so
         The actual analysis of metrics is performed separately, to allow for testing
     """
@@ -529,7 +528,6 @@ def run_benchmark(benchmark, test_config=TestConfig(), context=None):
         for i in xrange(0, len(metricnames)):
             results[i].append(curl.getinfo(metricvalues[i]))
 
-    curl.close()
     logger.info('Benchmark: ' + message + ' ending')
 
     temp_results = dict()
@@ -638,6 +636,7 @@ def run_testsets(testsets):
     group_failure_counts = dict()
     total_failures = 0
     myinteractive = False
+    curl_handle = pycurl.Curl()
 
     for testset in testsets:
         mytests = testset.tests
@@ -667,7 +666,7 @@ def run_testsets(testsets):
                 group_results[test.group] = list()
                 group_failure_counts[test.group] = 0
 
-            result = run_test(test, test_config=myconfig, context=context)
+            result = run_test(test, test_config=myconfig, context=context, curl_handle=curl_handle)
             result.body = None  # Remove the body, save some memory!
 
             if not result.passed:  # Print failure, increase failure counts for that test group
@@ -815,6 +814,12 @@ except ImportError as ie:
     logging.debug(
         "Failed to load jsonschema validator, make sure the jsonschema module is installed if you wish to use schema validators.")
 
+try:
+    import jmespath
+    register_extensions('pyresttest.ext.extractor_jmespath')
+except ImportError as ie:
+    logging.debug(
+        "Failed to load jmespath extractor, make sure the jmespath module is installed if you wish to use jmespath extractor.")
 
 def main(args):
     """

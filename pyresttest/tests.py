@@ -291,6 +291,16 @@ class Test(object):
 
         if curl_handle:
             curl = curl_handle
+
+            try:  # Check the curl handle isn't closed, and reuse it if possible
+                curl.getinfo(curl.HTTP_CODE)                
+                # Below clears the cookies & curl options for clean run
+                # But retains the DNS cache and connection pool
+                curl.reset()
+                curl.setopt(curl.COOKIELIST, "ALL")
+            except pycurl.error:
+                curl = pycurl.Curl()
+            
         else:
             curl = pycurl.Curl()
 
@@ -333,14 +343,24 @@ class Test(object):
             curl.setopt(curl.POSTFIELDS, bod)
             curl.setopt(curl.CUSTOMREQUEST, 'PATCH')
             # Required for some servers
+            # I wonder: how compatible will this be?  It worked with Django but feels iffy.
             if bod is not None:
                 curl.setopt(pycurl.INFILESIZE, len(bod))
             else:
                 curl.setopt(pycurl.INFILESIZE, 0)
         elif self.method == u'DELETE':
             curl.setopt(curl.CUSTOMREQUEST, 'DELETE')
-        elif self.method and self.method.upper() != 'GET':  # Support HEAD/ETC
+            if bod is not None:
+                curl.setopt(pycurl.POSTFIELDS, bod)
+                curl.setopt(pycurl.POSTFIELDSIZE, len(bod))
+        elif self.method == u'HEAD':
+            curl.setopt(curl.NOBODY, 1)
+            curl.setopt(curl.CUSTOMREQUEST, 'HEAD')
+        elif self.method and self.method.upper() != 'GET':  # Alternate HTTP methods
             curl.setopt(curl.CUSTOMREQUEST, self.method.upper())
+            if bod is not None:
+                curl.setopt(pycurl.POSTFIELDS, bod)
+                curl.setopt(pycurl.POSTFIELDSIZE, len(bod))
 
         # Template headers as needed and convert headers dictionary to list of header entries
         head = self.get_headers(context=context)
