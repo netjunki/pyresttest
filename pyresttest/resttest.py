@@ -499,6 +499,11 @@ def run_benchmark(benchmark, test_config=TestConfig(), context=None, *args, **kw
         templated = benchmark.realize(my_context)
         curl = templated.configure_curl(
             timeout=test_config.timeout, context=my_context, curl_handle=curl)
+        if test_config.verbose:
+            curl.setopt(pycurl.VERBOSE, True)
+        if test_config.ssl_insecure:
+            curl.setopt(pycurl.SSL_VERIFYPEER, 0)
+            curl.setopt(pycurl.SSL_VERIFYHOST, 0)
         # Do not store actual response body at all.
         curl.setopt(pycurl.WRITEFUNCTION, lambda x: None)
         curl.perform()
@@ -515,6 +520,11 @@ def run_benchmark(benchmark, test_config=TestConfig(), context=None, *args, **kw
             timeout=test_config.timeout, context=my_context, curl_handle=curl)
         # Do not store actual response body at all.
         curl.setopt(pycurl.WRITEFUNCTION, lambda x: None)
+        if test_config.verbose:
+            curl.setopt(pycurl.VERBOSE, True)
+        if test_config.ssl_insecure:
+            curl.setopt(pycurl.SSL_VERIFYPEER, 0)
+            curl.setopt(pycurl.SSL_VERIFYHOST, 0)
 
         try:  # Run the curl call, if it errors, then add to failure counts for benchmark
             curl.perform()
