@@ -355,7 +355,9 @@ def run_test(mytest, test_config=TestConfig(), context=None, curl_handle=None, *
         print("HEADERS:")
         print("%s" % (templated_test.headers))
         if mytest.body is not None:
-            print("\n%s" % templated_test.body)
+            if test_config.interactive:
+                print("REQUEST BODY:")
+            print("%s" % templated_test.body)
         raw_input("Press ENTER when ready (%d): " % (mytest.delay))
 
     if mytest.delay > 0:
